@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FileUp,
   FileText,
@@ -15,6 +15,7 @@ import {
   ArrowRight,
   ArrowLeft,
   RefreshCw,
+  ScanText,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,7 @@ function ProposalStudio() {
 
   const [step, setStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [extracting, setExtracting] = useState(false);
   const [extractedText, setExtractedText] = useState("");
 
@@ -85,44 +87,32 @@ function ProposalStudio() {
   const [exporting, setExporting] = useState<null | "docx" | "pdf">(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    return () => {
+      if (fileUrl) URL.revokeObjectURL(fileUrl);
+    };
+  }, [fileUrl]);
+
   const reset = () => {
+    if (fileUrl) URL.revokeObjectURL(fileUrl);
     setStep(1);
     setFile(null);
+    setFileUrl(null);
     setExtractedText("");
     setFindings(null);
     setProposal("");
   };
 
   const handleFile = useCallback(
-    async (f: File) => {
+    (f: File) => {
+      if (fileUrl) URL.revokeObjectURL(fileUrl);
       setFile(f);
-      setExtracting(true);
-      try {
-        const text = await extractTextFromFile(f);
-        if (!text || text.trim().length < 50) {
-          throw new Error("We couldn't extract enough text. Is the PDF scanned (image-only)?");
-        }
-        setExtractedText(text);
-        toast.success(`Extracted ${text.length.toLocaleString()} characters from ${f.name}`);
-
-        setAnalysing(true);
-        try {
-          const result = await extractFn({ data: { text } });
-          setFindings(result);
-          setStep(2);
-          toast.success("Key findings extracted");
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Failed to extract findings");
-        } finally {
-          setAnalysing(false);
-        }
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to read document");
-      } finally {
-        setExtracting(false);
-      }
+      setFileUrl(URL.createObjectURL(f));
+      setExtractedText("");
+      setFindings(null);
+      setProposal("");
     },
-    [extractFn],
+    [fileUrl],
   );
 
   const onDrop = useCallback(
@@ -134,13 +124,43 @@ function ProposalStudio() {
     [handleFile],
   );
 
+  const handleExtractText = async () => {
+    if (!file) return;
+    setExtracting(true);
+    try {
+      const text = await extractTextFromFile(file);
+      if (!text || text.trim().length < 50) {
+        throw new Error("We couldn't extract enough text. Is the PDF scanned (image-only)?");
+      }
+      setExtractedText(text);
+      toast.success(`Extracted ${text.length.toLocaleString()} characters`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to read document");
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  const handleGenerateFindings = async () => {
+    if (!extractedText) return;
+    setAnalysing(true);
+    try {
+      const result = await extractFn({ data: { text: extractedText } });
+      setFindings(result);
+      toast.success("Key findings extracted");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to extract findings");
+    } finally {
+      setAnalysing(false);
+    }
+  };
+
   const handleGenerate = async () => {
     if (!findings) return;
     setGenerating(true);
     try {
       const { markdown } = await generateFn({ data: { findings } });
       setProposal(markdown);
-      setStep(4);
       toast.success("Proposal draft ready");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate proposal");
@@ -215,18 +235,24 @@ function ProposalStudio() {
         <div className="mt-8 space-y-6">
           {step === 1 && (
             <UploadStep
-              extracting={extracting || analysing}
-              analysing={analysing}
               file={file}
+              fileUrl={fileUrl}
+              extracting={extracting}
+              extractedText={extractedText}
               inputRef={inputRef}
               onDrop={onDrop}
-              onPick={(f) => handleFile(f)}
+              onPick={handleFile}
+              onExtract={handleExtractText}
+              onNext={() => setStep(2)}
             />
           )}
 
-          {step === 2 && findings && (
+          {step === 2 && (
             <FindingsStep
+              extractedText={extractedText}
               findings={findings}
+              analysing={analysing}
+              onGenerateFindings={handleGenerateFindings}
               setFindings={setFindings}
               updateFinding={updateFinding}
               removeFinding={removeFinding}
@@ -240,8 +266,11 @@ function ProposalStudio() {
             <GenerateStep
               findings={findings}
               generating={generating}
+              proposal={proposal}
+              setProposal={setProposal}
               onBack={() => setStep(2)}
               onGenerate={handleGenerate}
+              onNext={() => setStep(4)}
             />
           )}
 
@@ -304,72 +333,144 @@ function Stepper({ current }: { current: number }) {
 // ---------- Step 1 ----------
 
 function UploadStep({
-  extracting,
-  analysing,
   file,
+  fileUrl,
+  extracting,
+  extractedText,
   inputRef,
   onDrop,
   onPick,
+  onExtract,
+  onNext,
 }: {
-  extracting: boolean;
-  analysing: boolean;
   file: File | null;
+  fileUrl: string | null;
+  extracting: boolean;
+  extractedText: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
   onPick: (f: File) => void;
+  onExtract: () => void;
+  onNext: () => void;
 }) {
+  const isPdf =
+    !!file && (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Upload tender or project document</CardTitle>
         <CardDescription>
-          PDF or DOCX, up to ~50 MB. Text is extracted in your browser, then analysed by the AI.
+          PDF or DOCX. Preview your document, then click <strong>Extract text</strong> to pull
+          the raw text in your browser.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <div
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={onDrop}
-          onClick={() => inputRef.current?.click()}
-          className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/30 p-12 text-center transition-colors hover:bg-muted/60"
-        >
-          {extracting ? (
-            <>
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm font-medium">
-                {analysing ? "Analysing with Gemini…" : "Reading document…"}
+      <CardContent className="space-y-6">
+        {!file ? (
+          <div
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={onDrop}
+            onClick={() => inputRef.current?.click()}
+            className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-border bg-muted/30 p-12 text-center transition-colors hover:bg-muted/60"
+          >
+            <FileUp className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="text-sm font-medium">Drop a file here or click to browse</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Accepted: .pdf, .docx — scanned/image-only PDFs are not supported.
               </p>
-              {file && <p className="text-xs text-muted-foreground">{file.name}</p>}
-            </>
-          ) : (
-            <>
-              <FileUp className="h-10 w-10 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">Drop a file here or click to browse</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Accepted: .pdf, .docx — scanned/image-only PDFs are not supported.
-                </p>
+            </div>
+            <Button type="button" variant="default" size="sm" className="mt-2 gap-2">
+              <FileUp className="h-4 w-4" /> Choose file
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/30 p-3">
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(file.size / 1024).toFixed(1)} KB
+                    {extractedText && ` • ${extractedText.length.toLocaleString()} chars extracted`}
+                  </p>
+                </div>
               </div>
-              <Button type="button" variant="default" size="sm" className="mt-2 gap-2">
-                <FileUp className="h-4 w-4" /> Choose file
-              </Button>
-            </>
-          )}
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onPick(f);
-              e.target.value = "";
-            }}
-          />
-        </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => inputRef.current?.click()}
+                  className="gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" /> Replace
+                </Button>
+                <Button size="sm" onClick={onExtract} disabled={extracting} className="gap-2">
+                  {extracting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Extracting…
+                    </>
+                  ) : (
+                    <>
+                      <ScanText className="h-4 w-4" />
+                      {extractedText ? "Re-extract text" : "Extract text"}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
 
-        <Alert className="mt-6">
-          <AlertTriangle className="h-4 w-4" />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Document preview</Label>
+                {isPdf && fileUrl ? (
+                  <iframe
+                    src={fileUrl}
+                    title="Document preview"
+                    className="h-[520px] w-full rounded-md border border-border bg-card"
+                  />
+                ) : (
+                  <div className="flex h-[520px] items-center justify-center rounded-md border border-border bg-muted/30 p-6 text-center">
+                    <div>
+                      <FileText className="mx-auto h-10 w-10 text-muted-foreground" />
+                      <p className="mt-3 text-sm font-medium">DOCX preview not available</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Click <strong>Extract text</strong> to view the document content.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Extracted text</Label>
+                <Textarea
+                  value={extractedText}
+                  onChange={() => {}}
+                  readOnly
+                  placeholder="Click 'Extract text' to pull text from the document…"
+                  className="h-[520px] resize-none font-mono text-xs"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onPick(f);
+            e.target.value = "";
+          }}
+        />
+
+        <Alert>
+          <AlertTriangle className="h-4 w-4 shrink-0" />
           <div>
             <p className="text-sm font-medium">Accuracy first</p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -380,6 +481,18 @@ function UploadStep({
             </p>
           </div>
         </Alert>
+
+        {file && (
+          <div className="flex items-center justify-end pt-2">
+            <Button
+              onClick={onNext}
+              disabled={!extractedText}
+              className="gap-2"
+            >
+              Continue to findings <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -400,7 +513,10 @@ function Alert({ children, className = "" }: { children: React.ReactNode; classN
 // ---------- Step 2 ----------
 
 function FindingsStep({
+  extractedText,
   findings,
+  analysing,
+  onGenerateFindings,
   setFindings,
   updateFinding,
   removeFinding,
@@ -408,7 +524,10 @@ function FindingsStep({
   onBack,
   onNext,
 }: {
-  findings: FindingsResponse;
+  extractedText: string;
+  findings: FindingsResponse | null;
+  analysing: boolean;
+  onGenerateFindings: () => void;
   setFindings: (f: FindingsResponse) => void;
   updateFinding: (i: number, patch: Partial<Finding>) => void;
   removeFinding: (i: number) => void;
@@ -419,112 +538,149 @@ function FindingsStep({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Review & edit key findings</CardTitle>
+        <CardTitle>Key findings</CardTitle>
         <CardDescription>
-          Verify every item against the source document. These findings are the sole basis for
-          the proposal — edit, delete, or add as needed.
+          Generate structured findings from the extracted text using Gemini, then review and edit
+          each item. These findings are the sole basis for the proposal.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Project title</Label>
-            <Input
-              value={findings.project_title}
-              onChange={(e) => setFindings({ ...findings, project_title: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Client</Label>
-            <Input
-              value={findings.client}
-              onChange={(e) => setFindings({ ...findings, client: e.target.value })}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Summary</Label>
-          <Textarea
-            rows={3}
-            value={findings.summary}
-            onChange={(e) => setFindings({ ...findings, summary: e.target.value })}
-          />
-        </div>
-
-        <Separator />
-
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold">Findings ({findings.findings.length})</h3>
-            <p className="text-xs text-muted-foreground">
-              Grouped by category. Each item includes a source excerpt for verification.
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={addFinding} className="gap-2">
-            <Plus className="h-4 w-4" /> Add finding
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/30 p-3">
+          <p className="text-xs text-muted-foreground">
+            {extractedText
+              ? `${extractedText.length.toLocaleString()} characters of source text available`
+              : "No extracted text — go back and extract first."}
+          </p>
+          <Button
+            size="sm"
+            onClick={onGenerateFindings}
+            disabled={!extractedText || analysing}
+            className="gap-2"
+          >
+            {analysing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Analysing with Gemini…
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                {findings ? "Re-generate findings" : "Generate findings with Gemini"}
+              </>
+            )}
           </Button>
         </div>
 
-        <div className="space-y-3">
-          {findings.findings.map((f, i) => (
-            <div key={i} className="rounded-md border border-border bg-card p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex-1 space-y-3">
-                  <div className="grid gap-3 md:grid-cols-[200px_1fr]">
-                    <Select
-                      value={f.category}
-                      onValueChange={(v) => updateFinding(i, { category: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {FINDING_CATEGORIES.map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {c}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      placeholder="Short title"
-                      value={f.title}
-                      onChange={(e) => updateFinding(i, { title: e.target.value })}
-                    />
-                  </div>
-                  <Textarea
-                    rows={2}
-                    placeholder="Detail"
-                    value={f.detail}
-                    onChange={(e) => updateFinding(i, { detail: e.target.value })}
-                  />
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Source excerpt</Label>
-                    <Textarea
-                      rows={2}
-                      placeholder="Verbatim quote from the document"
-                      value={f.source_excerpt ?? ""}
-                      onChange={(e) => updateFinding(i, { source_excerpt: e.target.value })}
-                      className="font-mono text-xs"
-                    />
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeFinding(i)}
-                  aria-label="Remove finding"
-                >
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
+        {!findings ? (
+          <div className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-muted/20 p-12 text-center">
+            <FileText className="h-10 w-10 text-muted-foreground" />
+            <p className="text-sm font-medium">No findings yet</p>
+            <p className="text-xs text-muted-foreground">
+              Click <strong>Generate findings with Gemini</strong> to analyse the document.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Project title</Label>
+                <Input
+                  value={findings.project_title}
+                  onChange={(e) => setFindings({ ...findings, project_title: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Client</Label>
+                <Input
+                  value={findings.client}
+                  onChange={(e) => setFindings({ ...findings, client: e.target.value })}
+                />
               </div>
             </div>
-          ))}
-          {findings.findings.length === 0 && (
-            <p className="text-sm text-muted-foreground">No findings yet. Add one to continue.</p>
-          )}
-        </div>
+
+            <div className="space-y-2">
+              <Label>Summary</Label>
+              <Textarea
+                rows={3}
+                value={findings.summary}
+                onChange={(e) => setFindings({ ...findings, summary: e.target.value })}
+              />
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold">Findings ({findings.findings.length})</h3>
+                <p className="text-xs text-muted-foreground">
+                  Grouped by category. Each item includes a source excerpt for verification.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={addFinding} className="gap-2">
+                <Plus className="h-4 w-4" /> Add finding
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {findings.findings.map((f, i) => (
+                <div key={i} className="rounded-md border border-border bg-card p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 space-y-3">
+                      <div className="grid gap-3 md:grid-cols-[200px_1fr]">
+                        <Select
+                          value={f.category}
+                          onValueChange={(v) => updateFinding(i, { category: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {FINDING_CATEGORIES.map((c) => (
+                              <SelectItem key={c} value={c}>
+                                {c}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder="Short title"
+                          value={f.title}
+                          onChange={(e) => updateFinding(i, { title: e.target.value })}
+                        />
+                      </div>
+                      <Textarea
+                        rows={2}
+                        placeholder="Detail"
+                        value={f.detail}
+                        onChange={(e) => updateFinding(i, { detail: e.target.value })}
+                      />
+                      <div className="space-y-1">
+                        <Label className="text-xs text-muted-foreground">Source excerpt</Label>
+                        <Textarea
+                          rows={2}
+                          placeholder="Verbatim quote from the document"
+                          value={f.source_excerpt ?? ""}
+                          onChange={(e) => updateFinding(i, { source_excerpt: e.target.value })}
+                          className="font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeFinding(i)}
+                      aria-label="Remove finding"
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {findings.findings.length === 0 && (
+                <p className="text-sm text-muted-foreground">No findings yet. Add one to continue.</p>
+              )}
+            </div>
+          </>
+        )}
 
         <div className="flex items-center justify-between pt-2">
           <Button variant="outline" onClick={onBack} className="gap-2">
@@ -532,7 +688,7 @@ function FindingsStep({
           </Button>
           <Button
             onClick={onNext}
-            disabled={findings.findings.length === 0}
+            disabled={!findings || findings.findings.length === 0}
             className="gap-2"
           >
             Continue to draft <ArrowRight className="h-4 w-4" />
@@ -548,13 +704,19 @@ function FindingsStep({
 function GenerateStep({
   findings,
   generating,
+  proposal,
+  setProposal,
   onBack,
   onGenerate,
+  onNext,
 }: {
   findings: FindingsResponse;
   generating: boolean;
+  proposal: string;
+  setProposal: (v: string) => void;
   onBack: () => void;
   onGenerate: () => void;
+  onNext: () => void;
 }) {
   const grouped = useMemo(() => {
     const map = new Map<string, Finding[]>();
@@ -571,8 +733,8 @@ function GenerateStep({
       <CardHeader>
         <CardTitle>Generate proposal draft</CardTitle>
         <CardDescription>
-          The AI will draft a proposal using only the findings below. Missing data will be flagged
-          with bracketed placeholders.
+          The AI will draft a proposal using only the findings below. The draft is fully editable
+          before you continue.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -585,29 +747,33 @@ function GenerateStep({
           <p className="mt-3 text-sm">{findings.summary}</p>
         </div>
 
-        <div className="space-y-3">
-          {grouped.map(([cat, items]) => (
-            <div key={cat}>
-              <div className="mb-2 flex items-center gap-2">
-                <Badge variant="secondary">{cat}</Badge>
-                <span className="text-xs text-muted-foreground">{items.length} item(s)</span>
+        {!proposal && (
+          <div className="space-y-3">
+            {grouped.map(([cat, items]) => (
+              <div key={cat}>
+                <div className="mb-2 flex items-center gap-2">
+                  <Badge variant="secondary">{cat}</Badge>
+                  <span className="text-xs text-muted-foreground">{items.length} item(s)</span>
+                </div>
+                <ul className="ml-4 list-disc space-y-1 text-sm">
+                  {items.map((f, i) => (
+                    <li key={i}>
+                      <span className="font-medium">{f.title}</span>
+                      {f.detail && <span className="text-muted-foreground"> — {f.detail}</span>}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="ml-4 list-disc space-y-1 text-sm">
-                {items.map((f, i) => (
-                  <li key={i}>
-                    <span className="font-medium">{f.title}</span>
-                    {f.detail && <span className="text-muted-foreground"> — {f.detail}</span>}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
-        <div className="flex items-center justify-between pt-2">
-          <Button variant="outline" onClick={onBack} disabled={generating} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Back
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-muted/30 p-3">
+          <p className="text-xs text-muted-foreground">
+            {proposal
+              ? `Draft ready — ${proposal.length.toLocaleString()} characters. Edit below as needed.`
+              : "Click generate to draft the proposal from the findings above."}
+          </p>
           <Button onClick={onGenerate} disabled={generating} className="gap-2">
             {generating ? (
               <>
@@ -615,9 +781,31 @@ function GenerateStep({
               </>
             ) : (
               <>
-                <Sparkles className="h-4 w-4" /> Generate proposal
+                <Sparkles className="h-4 w-4" />
+                {proposal ? "Re-generate draft" : "Generate proposal"}
               </>
             )}
+          </Button>
+        </div>
+
+        {proposal && (
+          <div className="space-y-2">
+            <Label>Proposal draft (Markdown — editable)</Label>
+            <Textarea
+              rows={22}
+              value={proposal}
+              onChange={(e) => setProposal(e.target.value)}
+              className="font-mono text-sm"
+            />
+          </div>
+        )}
+
+        <div className="flex items-center justify-between pt-2">
+          <Button variant="outline" onClick={onBack} disabled={generating} className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Back
+          </Button>
+          <Button onClick={onNext} disabled={!proposal} className="gap-2">
+            Continue to preview <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       </CardContent>
@@ -702,7 +890,6 @@ function PreviewStep({
 }
 
 function MarkdownView({ source }: { source: string }) {
-  // Lightweight renderer for headings, bullets, paragraphs — no external deps.
   const blocks: React.ReactNode[] = [];
   const lines = source.split(/\r?\n/);
   let buf: string[] = [];
@@ -776,7 +963,6 @@ function MarkdownView({ source }: { source: string }) {
 }
 
 function renderInline(s: string): React.ReactNode {
-  // bold (**text**) and inline placeholders
   const parts = s.split(/(\*\*[^*]+\*\*)/g);
   return parts.map((p, i) => {
     if (p.startsWith("**") && p.endsWith("**")) {
