@@ -274,8 +274,14 @@ COMPLIANCE RULES:
 
 OUTPUT RULES:
 - Output Markdown only.
-- Use ## headings only.
+- Use ## headings only for sections.
+- Use **bold** for emphasis on key terms.
+- For lists, use a simple dash (-) followed by a space.
+- Ensure each point is on a NEW LINE.
 - No code fences.
+- No special symbols, decorative characters, or emojis.
+- No arrows (->, =>).
+- Keep the language clean and professional.
 `;
 
 function findingsPrompt(text) {
@@ -418,6 +424,10 @@ ${JSON.stringify(findings.findings, null, 2)}
 
 ADDITIONAL COMPOSITION RULES:
 - Scope items must directly map to extracted findings.
+- Use clear, separate lines for each point or list item.
+- Do not use special characters or symbols like arrows or custom bullets.
+- Use standard Markdown bolding (**text**) for emphasis.
+- Ensure points strictly start on new lines.
 - Mention missing client inputs where relevant.
 - Keep technical approach generic if methodology is not specified.
 - Commercial section must NEVER invent figures.
