@@ -34,7 +34,7 @@ export default function FindingsPage() {
       updateFinding={updateFinding}
       removeFinding={removeFinding}
       addFinding={addFinding}
-      onBack={() => navigate("/")}
+      onBack={() => navigate("/upload")}
       onNext={() => navigate("/generate")}
     />
   );

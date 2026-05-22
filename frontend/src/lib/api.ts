@@ -25,6 +25,13 @@ export type Finding = {
 export type FindingsResponse = {
   project_title: string;
   client: string;
+  project_type?: string;
+  location?: string;
+  authority?: string;
+  development_type?: string;
+  land_use_summary?: any[];
+  gfa_summary?: any[];
+  required_transportation_studies?: any[];
   summary: string;
   findings: Finding[];
 };

@@ -9,17 +9,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { type FindingsResponse, type Finding } from "@/lib/api";
 
 const FINDING_CATEGORIES = [
+  "Land Use",
+  "GFA (Gross Floor Area)",
+  "Transportation Studies",
+  "Parking Requirements",
+  "Traffic Requirements",
+  "Authority Requirements",
   "Scope",
-  "Objectives",
   "Deliverables",
-  "Technical Requirements",
-  "Schedule & Milestones",
-  "Budget & Commercials",
-  "Compliance & Standards",
-  "Stakeholders",
-  "Risks & Constraints",
   "Submission Requirements",
-  "Evaluation Criteria",
+  "Risks & Constraints",
   "Other",
 ];
 
@@ -199,7 +198,7 @@ export function FindingsStep({
           <Button variant="outline" onClick={onBack} className="gap-2">
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
-          <Button
+        <Button
             onClick={onNext}
             disabled={!findings || findings.findings.length === 0}
             className="gap-2"
