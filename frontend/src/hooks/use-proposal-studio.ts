@@ -46,6 +46,11 @@ export function useProposalStudio() {
 
   const handleFile = useCallback(
     (f: File) => {
+      const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+      if (!isPdf) {
+        toast.error("Only PDF files are allowed.");
+        return;
+      }
       if (fileUrl) URL.revokeObjectURL(fileUrl);
       setFile(f);
       setFileUrl(URL.createObjectURL(f));

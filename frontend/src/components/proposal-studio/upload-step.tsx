@@ -87,7 +87,7 @@ export function UploadStep({
               <div className="space-y-2">
                 <p className="text-xl font-semibold">Drop your document here</p>
                 <p className="mx-auto max-w-sm text-sm text-muted-foreground">
-                  Accepted formats: <strong>PDF</strong> or <strong>DOCX</strong>.
+                  Accepted formats: <strong>PDF</strong>
                 </p>
               </div>
               <Button 
@@ -157,7 +157,7 @@ export function UploadStep({
                     <div className="flex h-full flex-col items-center justify-center gap-4 p-12 text-center text-white/50">
                       <FileText className="h-12 w-12 opacity-20" />
                       <p className="max-w-[200px] text-xs font-medium leading-relaxed">
-                        Native preview is only available for PDF files. Use the extraction tool to view DOCX content.
+                        Native preview is only available for PDF files.
                       </p>
                     </div>
                   )}
@@ -201,7 +201,7 @@ export function UploadStep({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          accept=".pdf,application/pdf"
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];
