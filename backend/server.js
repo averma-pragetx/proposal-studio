@@ -28,8 +28,8 @@ function cleanText(text) {
 
 const app = express();
 const port = Number(process.env.PORT ?? 5000);
-const geminiModel = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
-const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent`;
+const openaiModel = process.env.OPENAI_MODEL ?? "gpt-5.4";
+const openaiUrl = "https://api.openai.com/v1/chat/completions";
 
 app.use(cors({ origin: process.env.FRONTEND_ORIGIN ?? "http://localhost:8080" }));
 app.use(express.json({ limit: "10mb" }));
@@ -78,7 +78,7 @@ and determine:
 
 - proposed development type
 - land use breakdown
-- GFA (Gross Floor Area)
+- GFA
 - transportation study requirements
 - parking analysis requirements
 - authority coordination requirements
@@ -436,59 +436,46 @@ ADDITIONAL COMPOSITION RULES:
 }
 
 
-async function callGemini(systemPrompt, userPrompt, jsonMode = false) {
-  const apiKey = process.env.GEMINI_API_KEY;
+async function callOpenAI(systemPrompt, userPrompt, jsonMode = false) {
+  const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured on the backend.");
+    throw new Error("OPENAI_API_KEY is not configured on the backend.");
   }
 
   const inputTokens = countTokens(systemPrompt + userPrompt);
 
-  const response = await fetch(`${geminiUrl}?key=${apiKey}`, {
+  const response = await fetch(openaiUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        topP: 0.9,
-        maxOutputTokens: 8192,
-        ...(jsonMode ? { responseMimeType: "application/json" } : {}),
-      },
+      model: openaiModel,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.2,
+      top_p: 0.9,
+      max_completion_tokens: 4096,
+      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${errorText.slice(0, 500)}`);
+    throw new Error(`OpenAI API error (${response.status}): ${errorText.slice(0, 500)}`);
   }
 
   const data = await response.json();
-  const candidate = data.candidates?.[0];
-  
-  if (!candidate) {
-    console.error("No candidates in Gemini response:", JSON.stringify(data));
-    throw new Error("Gemini returned no response candidates.");
-  }
-
-  const text = candidate.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+  const text = data.choices?.[0]?.message?.content ?? "";
   const outputTokens = countTokens(text);
 
-  console.log(`[Gemini API] Tokens -> Input: ${inputTokens} | Output: ${outputTokens} | Total: ${inputTokens + outputTokens}`);
+  console.log(`[OpenAI API] Tokens -> Input: ${inputTokens} | Output: ${outputTokens} | Total: ${inputTokens + outputTokens}`);
 
-  if (candidate.finishReason && candidate.finishReason !== "STOP") {
-    console.warn(`Gemini finish reason: ${candidate.finishReason}`);
-    if (candidate.finishReason === "MAX_TOKENS") {
-      console.error("Gemini response was truncated due to token limit.");
-    }
-  }
-  
   if (!text) {
-    if (candidate.finishReason === "SAFETY") {
-      throw new Error("Gemini response was blocked by safety filters.");
-    }
-    throw new Error(`Gemini returned an empty response. Finish reason: ${candidate.finishReason}`);
+    throw new Error("OpenAI returned an empty response.");
   }
 
   return text;
@@ -502,16 +489,16 @@ app.post("/api/findings", async (req, res, next) => {
   try {
     const input = z.object({ text: z.string().trim().min(50) }).parse(req.body);
     const cleanedInput = cleanText(input.text);
-    const raw = await callGemini(FINDINGS_SYSTEM, findingsPrompt(cleanedInput), true);
+    const raw = await callOpenAI(FINDINGS_SYSTEM, findingsPrompt(cleanedInput), true);
     const cleaned = raw.replace(/```json\s*|\s*```/g, "").trim();
     if (!cleaned) {
-      throw new Error("Gemini returned an empty response after cleaning.");
+      throw new Error("OpenAI returned an empty response after cleaning.");
     }
     try {
       const result = FindingsResponseSchema.parse(JSON.parse(cleaned));
       res.json(result);
     } catch (parseError) {
-      console.error("Failed to parse Gemini response:", cleaned);
+      console.error("Failed to parse OpenAI response:", cleaned);
       throw new Error(`Invalid JSON response from AI: ${parseError.message}`);
     }
   } catch (error) {
@@ -522,7 +509,7 @@ app.post("/api/findings", async (req, res, next) => {
 app.post("/api/proposal", async (req, res, next) => {
   try {
     const input = z.object({ findings: FindingsResponseSchema }).parse(req.body);
-    const markdown = await callGemini(PROPOSAL_SYSTEM, proposalPrompt(input.findings), false);
+    const markdown = await callOpenAI(PROPOSAL_SYSTEM, proposalPrompt(input.findings), false);
     res.json({ markdown: markdown.trim() });
   } catch (error) {
     next(error);
