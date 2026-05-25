@@ -57,3 +57,11 @@ export function extractFindings(input: { text: string }) {
 export function generateProposal(input: { findings: FindingsResponse }) {
   return apiPost<{ markdown: string }>("/api/proposal", input);
 }
+
+export function editProposal(input: {
+  proposal: string;
+  query: string;
+  history: { query: string }[];
+}) {
+  return apiPost<{ markdown: string }>("/api/edit-proposal", input);
+}

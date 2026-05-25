@@ -10,6 +10,8 @@ export default function GeneratePage() {
     proposal,
     setProposal,
     handleGenerateProposal,
+    editing,
+    handleEditProposal,
     setStep,
   } = useProposalStudioContext();
   const navigate = useNavigate();
@@ -31,7 +33,9 @@ export default function GeneratePage() {
       setProposal={setProposal}
       onBack={() => navigate("/findings")}
       onGenerate={handleGenerateProposal}
-      onNext={() => navigate("/preview")}
+      editing={editing}
+      onEdit={handleEditProposal}
+      onNext={() => navigate("/export")}
     />
   );
 }

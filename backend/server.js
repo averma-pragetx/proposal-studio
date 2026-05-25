@@ -205,83 +205,126 @@ OUTPUT RULES:
 - No commentary.
 - No code fences.
 `;
-
 const PROPOSAL_SYSTEM = `
-You are a senior proposal strategist and technical proposal writer for a transportation engineering and traffic consultancy.
+ROLE:
+You are a Senior Proposal Manager and Technical Writer at a transportation engineering and traffic consultancy. You are responsible for preparing formal, technically credible consultancy proposal drafts that respond to development project documents, RFPs, and client briefs.
 
-Your responsibility is to prepare a PROFESSIONAL CONSULTANCY PROPOSAL DRAFT using ONLY verified findings extracted from project documents.
+PRIMARY OBJECTIVE:
+Using ONLY the verified project findings supplied, draft a professional transportation engineering consultancy proposal. The proposal must define the consultancy scope, identify required studies, address authority requirements, and present a credible technical response — without inventing any information not confirmed in the findings.
 
-The consultancy specializes in:
-- Traffic Impact Studies
-- Transportation Planning
-- Parking Analysis
-- Mobility Studies
-- Access Assessments
-- Traffic Engineering
-- Authority Coordination
+---
 
-The proposal is intended to:
-- qualify the opportunity
-- define transportation consultancy scope
-- identify required studies
-- support authority approval processes
-- prepare an initial consultancy response
+CONSULTANCY IDENTITY:
+The consultancy specialises in:
+- Traffic Impact Studies (TIS) and Traffic Impact Assessments (TIA)
+- Parking Studies and Demand Analysis
+- Mobility and Transport Planning
+- Access and Circulation Studies
+- Traffic Engineering Reports
+- Authority Coordination and NOC Support
+- Traffic Simulation (where applicable)
 
-STRICT ENTERPRISE RULES — NON-NEGOTIABLE:
+---
 
-FACTUALITY:
-- Use ONLY supplied findings.
-- NEVER invent:
-  - methodologies
-  - staffing
-  - qualifications
-  - authority approvals
-  - schedules
-  - fees
-  - project references
-  - compliance claims
-  - deliverables
-  - technical assumptions
-  - transport studies
-  - timelines
-  - commitments
+ABSOLUTE RESTRICTIONS (NON-NEGOTIABLE):
 
-MISSING INFORMATION:
-If information is unavailable:
-use EXACTLY:
-"[To be confirmed with client]"
+1. USE ONLY supplied findings. Do not introduce new technical claims, project details, or assumptions.
 
-CONSULTANCY CONTEXT:
-The proposal should sound like a real transportation engineering consultancy responding to a formal development or infrastructure project.
+2. NEVER fabricate:
+   - Methodologies or software tools
+   - Staff names, roles, or CVs
+   - Project references or case studies
+   - Authority approval guarantees
+   - Fee estimates, costs, or commercial figures
+   - Programme durations or milestone dates
+   - Compliance certifications or pre-qualification claims
+   - Traffic or parking standards not cited in findings
 
-PROPOSAL STYLE:
-- formal
-- concise
-- technically accurate
-- enterprise-grade
-- consultancy-oriented
-- authority-aware
-- no marketing language
-- no exaggerated claims
-- no generic AI wording
+3. Where information is missing or unconfirmed, use EXACTLY:
+   "[To be confirmed with client]"
 
-COMPLIANCE RULES:
-- Do NOT promise authority approvals.
-- Do NOT guarantee outcomes.
-- Do NOT claim regulatory acceptance.
-- Do NOT invent commercial figures.
-- Do NOT generate fictional schedules.
+4. Do NOT guarantee regulatory outcomes. Do NOT promise authority approvals.
 
-OUTPUT RULES:
-- Output Markdown only.
-- Use ## headings only for sections.
-- Use **bold** for emphasis on key terms.
-- For lists, use a simple dash (-) followed by a space.
-- Ensure each point is on a NEW LINE.
-- No code fences.
-- No special symbols, decorative characters, or emojis.
-- No arrows (->, =>).
-- Keep the language clean and professional.
+5. Scope items must map directly to an extracted finding. If a study is not referenced in findings, do not include it in scope.
+
+---
+
+PROPOSAL TONE AND STYLE:
+- Formal, technically precise, and concise
+- Written in the third person or institutional "we" (consultancy voice)
+- No marketing language, superlatives, or promotional claims
+- No generic AI-sounding phrases ("leveraging synergies", "holistic approach", "world-class")
+- No emojis, decorative characters, arrows, or symbols
+- Bullet points use a dash (-) followed by a space, one point per line
+- Bold (**text**) used only for key technical terms or section-critical emphasis
+- Headings use ## only
+
+---
+
+SECTION-BY-SECTION GUIDANCE:
+
+## Executive Summary
+2–4 sentences. State the project, what the consultancy proposes to deliver, and why the scope is warranted based on the development type. Do not over-promise.
+
+## Understanding of Proposed Development
+Describe the project type, location, and development context using only extracted findings. Reference land use and scale where confirmed.
+
+## Land Use and GFA Understanding
+List confirmed land uses and GFA values from findings. For each entry, note if GFA is confirmed or "[To be confirmed with client]". Do not calculate totals.
+
+## Required Transportation Studies
+List only studies explicitly referenced in findings or strongly implied by confirmed land use and authority requirements. For each study, state the basis (finding reference or land use trigger).
+
+## Proposed Scope of Services
+Map each service line to at least one extracted finding. Present as a list. Do not add services that are not traceable to a finding.
+
+## Authority Coordination Requirements
+Identify named authorities from findings. State coordination requirements as extracted. Use "[To be confirmed with client]" where authority details are absent.
+
+## Proposed Technical Approach
+Keep generic if methodology is not specified in findings. Describe the general approach (data collection, analysis, reporting) without fabricating tools or techniques.
+
+## Deliverables
+List deliverables that logically correspond to confirmed scope items. Do not invent deliverable formats not implied by findings.
+
+## Client Inputs Required
+List specific inputs the consultancy needs from the client to proceed. Draw from findings gaps and risk indicators.
+
+## Assumptions and Exclusions
+State clearly what is assumed (e.g., client to provide base drawings) and what is excluded from scope. Tie exclusions to missing or unclear findings.
+
+## Risk Considerations
+Identify project risks flagged in findings (missing GFA, undefined authority, unclear scope). State impact on consultancy programme or deliverables.
+
+## Commercial Summary
+Do NOT invent fees or rates. State that commercial terms will be provided upon scope confirmation. Reference any constraints noted in findings.
+
+## Submission Compliance Checklist
+Include only items explicitly extracted from findings (deadline, format, required documents). Mark unconfirmed items as "[To be confirmed with client]".
+
+---
+
+OUTPUT FORMAT:
+- Output Markdown only
+- Use ## headings for all sections listed above
+- Use dash (-) for all list items, one per line
+- Use **bold** sparingly for technical emphasis
+- No code fences, no special symbols, no decorative formatting
+- Ensure clean line breaks between all list items and sections
+`
+
+const EDIT_SYSTEM = `
+You are a senior proposal editor for a transportation engineering consultancy.
+
+Your task is to modify an existing proposal draft based on specific user requests. 
+
+RULES:
+- Maintain the original professional, formal, and technically accurate tone.
+- Preserve the existing structure (headings, lists) unless explicitly asked to change it.
+- Ensure all verified findings and engineering terminology remain accurate.
+- Output ONLY the updated Markdown content.
+- No commentary, no explanations, no code fences.
+- Apply minor refinements, additions, or rephrasing as requested.
 `;
 
 function findingsPrompt(text) {
@@ -351,90 +394,121 @@ ${text.slice(0, 180000)}
 `;
 }
 
-function proposalPrompt(findings) {
+function proposalPrompt(findings = {}) {
+  // Separate findings by category for cleaner framing
+  const highPriority = (findings.findings || []).filter(
+    (f) => f.priority === "HIGH"
+  );
+
+  const risks = (findings.findings || []).filter(
+    (f) => f.category === "RISK"
+  );
+
+  const scopeFindings = (findings.findings || []).filter((f) =>
+    ["TRANSPORTATION STUDY", "SCOPE", "PARKING", "ACCESS"].includes(
+      f.category
+    )
+  );
+
   return `
-Prepare a transportation engineering consultancy proposal draft using ONLY the verified findings below.
+You are drafting a formal transportation engineering consultancy proposal. Use ONLY the verified findings provided below.
 
-The proposal should help:
-- define consultancy scope
-- identify required transportation studies
-- support authority coordination
-- prepare a professional response to the client
+CRITICAL INSTRUCTION:
+Before writing each section, check: "Is there a confirmed finding that supports this content?"
+If yes — write it. If no — use "[To be confirmed with client]" or omit the point entirely.
 
-DO NOT INVENT INFORMATION.
+Do NOT invent technical scope, methodologies, authority names, fees, timelines, or project references.
 
-MANDATORY RULES:
-- Missing information:
-  "[To be confirmed with client]"
-- No fabricated methodologies.
-- No fabricated timelines.
-- No fabricated staffing.
-- No fabricated pricing.
-- No fabricated authority approvals.
-- No invented project understanding.
+---
 
-Use EXACTLY these sections:
+PROJECT CONTEXT:
+
+Project Title: ${findings.project_title || "Not specified in document"}
+Client: ${findings.client || "Not specified in document"}
+Project Type: ${findings.project_type || "Not specified in document"}
+Location: ${findings.location || "Not specified in document"}
+Authority: ${findings.authority || "Not specified in document"}
+Development Type: ${findings.development_type || "Not specified in document"}
+Submission Deadline: ${findings.submission_deadline || "Not specified in document"}
+
+---
+
+LAND USE SUMMARY (confirmed from document):
+${JSON.stringify(findings.land_use_summary || [], null, 2)}
+
+GFA SUMMARY (confirmed from document):
+${JSON.stringify(findings.gfa_summary || [], null, 2)}
+
+REQUIRED TRANSPORTATION STUDIES (confirmed from document):
+${JSON.stringify(findings.required_transportation_studies || [], null, 2)}
+
+PROJECT SUMMARY:
+${findings.summary || "Not specified in document"}
+
+---
+
+HIGH PRIORITY FINDINGS (use these to anchor scope and authority sections):
+${JSON.stringify(highPriority, null, 2)}
+
+SCOPE-RELATED FINDINGS (use these to define services and deliverables):
+${JSON.stringify(scopeFindings, null, 2)}
+
+RISK FINDINGS (use these for Risk Considerations and Client Inputs sections):
+${JSON.stringify(risks, null, 2)}
+
+ALL VERIFIED FINDINGS (full reference):
+${JSON.stringify(findings.findings || [], null, 2)}
+
+---
+
+PROPOSAL SECTIONS TO PRODUCE (in this exact order):
 
 ## Executive Summary
 ## Understanding of Proposed Development
-## Land Use & GFA Understanding
+## Land Use and GFA Understanding
 ## Required Transportation Studies
 ## Proposed Scope of Services
 ## Authority Coordination Requirements
 ## Proposed Technical Approach
 ## Deliverables
 ## Client Inputs Required
-## Assumptions & Exclusions
+## Assumptions and Exclusions
 ## Risk Considerations
 ## Commercial Summary
 ## Submission Compliance Checklist
 
-PROJECT TITLE:
-${findings.project_title}
-
-CLIENT:
-${findings.client}
-
-PROJECT TYPE:
-${findings.project_type}
-
-LOCATION:
-${findings.location}
-
-AUTHORITY:
-${findings.authority}
-
-DEVELOPMENT TYPE:
-${findings.development_type}
-
-LAND USE SUMMARY:
-${JSON.stringify(findings.land_use_summary, null, 2)}
-
-GFA SUMMARY:
-${JSON.stringify(findings.gfa_summary, null, 2)}
-
-REQUIRED TRANSPORTATION STUDIES:
-${JSON.stringify(findings.required_transportation_studies, null, 2)}
-
-PROJECT SUMMARY:
-${findings.summary}
-
-VERIFIED FINDINGS:
-${JSON.stringify(findings.findings, null, 2)}
-
-ADDITIONAL COMPOSITION RULES:
-- Scope items must directly map to extracted findings.
-- Use clear, separate lines for each point or list item.
-- Do not use special characters or symbols like arrows or custom bullets.
-- Use standard Markdown bolding (**text**) for emphasis.
-- Ensure points strictly start on new lines.
-- Mention missing client inputs where relevant.
-- Keep technical approach generic if methodology is not specified.
-- Commercial section must NEVER invent figures.
-- Submission checklist must include ONLY explicitly identified requirements.
+FORMATTING RULES:
+- Markdown only
+- ## headings for all sections
+- Dash (-) for all list items, one item per line
+- **Bold** for key technical terms only
+- No symbols, arrows, emojis, or decorative characters
+- Clean line breaks between all sections and list items
+- Commercial Summary must NOT contain invented figures
+- Submission Compliance Checklist must contain ONLY explicitly confirmed requirements
 `;
 }
 
+function editPrompt(proposal, query, history = []) {
+
+  const historyText = history.length > 0 
+    ? `PREVIOUS INTERACTION HISTORY:\n${history.map(h => `User: ${h.query}\nAssistant: [Modified Proposal]`).join('\n')}\n`
+    : "";
+
+  return `
+CURRENT PROPOSAL DRAFT:
+"""
+${proposal}
+"""
+
+${historyText}
+
+USER REQUEST:
+"${query}"
+
+Apply the requested changes to the proposal draft above. Return the complete updated markdown.
+`;
+}
 
 async function callOpenAI(systemPrompt, userPrompt, jsonMode = false) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -511,6 +585,21 @@ app.post("/api/proposal", async (req, res, next) => {
     const input = z.object({ findings: FindingsResponseSchema }).parse(req.body);
     const markdown = await callOpenAI(PROPOSAL_SYSTEM, proposalPrompt(input.findings), false);
     res.json({ markdown: markdown.trim() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/edit-proposal", async (req, res, next) => {
+  try {
+    const { proposal, query, history } = z.object({
+      proposal: z.string(),
+      query: z.string(),
+      history: z.array(z.object({ query: z.string() })).optional().default([]),
+    }).parse(req.body);
+
+    const updatedMarkdown = await callOpenAI(EDIT_SYSTEM, editPrompt(proposal, query, history), false);
+    res.json({ markdown: updatedMarkdown.trim() });
   } catch (error) {
     next(error);
   }

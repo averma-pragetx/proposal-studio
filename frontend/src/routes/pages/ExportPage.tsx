@@ -13,9 +13,9 @@ export default function ExportPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    setStep(5);
+    setStep(4);
     if (!proposal) {
-      navigate("/preview");
+      navigate("/generate");
     }
   }, [setStep, proposal, navigate]);
 
@@ -23,7 +23,7 @@ export default function ExportPage() {
     <ExportStep
       exporting={exporting}
       onExport={handleExport}
-      onBack={() => navigate("/preview")}
+      onBack={() => navigate("/generate")}
     />
   );
 }

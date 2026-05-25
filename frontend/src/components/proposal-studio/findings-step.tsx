@@ -10,7 +10,7 @@ import { type FindingsResponse, type Finding } from "@/lib/api";
 
 const FINDING_CATEGORIES = [
   "Land Use",
-  "GFA (Gross Floor Area)",
+  "GFA",
   "Transportation Studies",
   "Parking Requirements",
   "Traffic Requirements",

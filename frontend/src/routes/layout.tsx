@@ -1,5 +1,5 @@
 import { Outlet, useNavigate } from "react-router-dom";
-import { Sparkles, RefreshCw, FileUp, FileText, Eye, Download } from "lucide-react";
+import { Sparkles, RefreshCw, FileUp, FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Stepper } from "@/components/proposal-studio/stepper";
 import { useProposalStudioContext } from "@/contexts/ProposalStudioContext";
@@ -8,8 +8,7 @@ const STEPS = [
   { id: 1, label: "Upload", icon: FileUp, path: "/upload" },
   { id: 2, label: "Findings", icon: FileText, path: "/findings" },
   { id: 3, label: "Generate", icon: Sparkles, path: "/generate" },
-  { id: 4, label: "Preview", icon: Eye, path: "/preview" },
-  { id: 5, label: "Export", icon: Download, path: "/export" },
+  { id: 4, label: "Export", icon: Download, path: "/export" },
 ] as const;
 
 export default function Layout() {

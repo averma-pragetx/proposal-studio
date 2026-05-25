@@ -1,6 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
-import { extractFindings, generateProposal, type FindingsResponse, type Finding } from "@/lib/api";
+import {
+  extractFindings,
+  generateProposal,
+  editProposal,
+  type FindingsResponse,
+  type Finding,
+} from "@/lib/api";
 import { extractTextFromFile, exportProposalDocx, exportProposalPdf } from "@/lib/document-tools";
 
 export function useProposalStudio() {
@@ -15,6 +21,8 @@ export function useProposalStudio() {
 
   const [generating, setGenerating] = useState(false);
   const [proposal, setProposal] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editHistory, setEditHistory] = useState<{ query: string }[]>([]);
 
   const [exporting, setExporting] = useState<null | "docx" | "pdf">(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -33,6 +41,7 @@ export function useProposalStudio() {
     setExtractedText("");
     setFindings(null);
     setProposal("");
+    setEditHistory([]);
   }, [fileUrl]);
 
   const handleFile = useCallback(
@@ -43,6 +52,7 @@ export function useProposalStudio() {
       setExtractedText("");
       setFindings(null);
       setProposal("");
+      setEditHistory([]);
     },
     [fileUrl],
   );
@@ -93,11 +103,27 @@ export function useProposalStudio() {
     try {
       const { markdown } = await generateProposal({ findings });
       setProposal(markdown);
+      setEditHistory([]);
       toast.success("Proposal draft ready");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to generate proposal");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleEditProposal = async (query: string) => {
+    if (!proposal || !query.trim()) return;
+    setEditing(true);
+    try {
+      const { markdown } = await editProposal({ proposal, query, history: editHistory });
+      setProposal(markdown);
+      setEditHistory((prev) => [...prev, { query }]);
+      toast.success("Draft updated via AI");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to edit proposal");
+    } finally {
+      setEditing(false);
     }
   };
 
@@ -152,6 +178,10 @@ export function useProposalStudio() {
     generating,
     proposal,
     setProposal,
+    editing,
+    editHistory,
+    setEditHistory,
+    handleEditProposal,
     exporting,
     inputRef,
     reset,
