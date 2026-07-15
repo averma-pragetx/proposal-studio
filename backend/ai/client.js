@@ -1,13 +1,53 @@
+import Anthropic from "@anthropic-ai/sdk";
 import { get_encoding } from "tiktoken";
 
 const encoding = get_encoding("cl100k_base");
 const openaiUrl = "https://api.openai.com/v1/chat/completions";
 
-// Active provider. Set AI_PROVIDER=openai in .env to switch back.
+// Active provider. Set AI_PROVIDER=openai|gemini in .env to switch back.
 export function callAI(systemPrompt, userPrompt, jsonMode = false) {
-  return process.env.AI_PROVIDER === "openai"
-    ? callOpenAI(systemPrompt, userPrompt, jsonMode)
-    : callGemini(systemPrompt, userPrompt, jsonMode);
+  switch (process.env.AI_PROVIDER) {
+    case "openai":
+      return callOpenAI(systemPrompt, userPrompt, jsonMode);
+    case "gemini":
+      return callGemini(systemPrompt, userPrompt, jsonMode);
+    default:
+      return callClaude(systemPrompt, userPrompt, jsonMode);
+  }
+}
+
+export async function callClaude(systemPrompt, userPrompt, jsonMode = false) {
+  const apiKey = process.env.CLAUDE_API_KEY;
+  if (!apiKey) {
+    throw new Error("CLAUDE_API_KEY is not configured on the backend.");
+  }
+
+  const client = new Anthropic({ apiKey });
+
+  const response = await client.messages.create({
+    model: process.env.CLAUDE_MODEL ?? "claude-opus-4-8",
+    max_tokens: 16000,
+    thinking: { type: "adaptive" },
+    system: jsonMode
+      ? `${systemPrompt}\n\nRespond with a single valid JSON object only — no markdown fences, no prose.`
+      : systemPrompt,
+    messages: [{ role: "user", content: userPrompt }],
+  });
+
+  const text = response.content
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("");
+
+  console.log(
+    `[Claude API] Tokens -> Input: ${response.usage.input_tokens} | Output: ${response.usage.output_tokens} | Total: ${response.usage.input_tokens + response.usage.output_tokens}`
+  );
+
+  if (!text) {
+    throw new Error("Claude returned an empty response.");
+  }
+
+  return text;
 }
 
 function countTokens(text) {

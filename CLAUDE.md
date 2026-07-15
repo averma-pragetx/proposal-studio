@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-AI proposal generator for a transportation engineering consultancy. Upload a PDF (RFP/tender), extract structured findings via OpenAI, generate a Markdown proposal, iteratively edit it with AI, export to DOCX/PDF.
+AI proposal generator for a transportation engineering consultancy. Upload a PDF (RFP/tender), extract structured findings via Claude, generate a Markdown proposal, iteratively edit it with AI, export to DOCX/PDF.
 
 Two independent npm packages — no root package.json:
 
-- `backend/` — Express 5 server (`server.js` routes/schemas, `ai/` prompts + OpenAI client).
+- `backend/` — Express 5 server (`server.js` routes/schemas, `ai/` prompts + AI client).
 - `frontend/` — React 19 + Vite + Tailwind 4 + shadcn/ui (Radix). TypeScript.
 
 ## Commands
@@ -26,14 +26,14 @@ cd frontend && npm run format    # prettier --write .
 
 No tests exist in this repo.
 
-Backend requires `backend/.env` with `OPENAI_API_KEY` (see `backend/.env.example`). Model defaults to `gpt-5.4` via `OPENAI_MODEL`.
+Backend requires `backend/.env` with `CLAUDE_API_KEY`. Claude is the default provider; model defaults to `claude-opus-4-8` via `CLAUDE_MODEL`. Set `AI_PROVIDER=openai|gemini` to switch back (needs `OPENAI_API_KEY`/`GEMINI_API_KEY`).
 
 ## Architecture
 
 Data flow (all client-side state, nothing persisted server-side):
 
 1. **Upload** — PDF parsed in browser via pdfjs-dist (`frontend/src/lib/document-tools.ts`). Raw text extracted client-side; backend never sees the file.
-2. **Findings** — text POSTed to `POST /api/findings`; backend prompts OpenAI in JSON mode, validates with Zod (`FindingsResponseSchema` in `server.js`). User can edit/add/remove findings in the UI.
+2. **Findings** — text POSTed to `POST /api/findings`; backend prompts Claude for JSON, validates with Zod (`FindingsResponseSchema` in `server.js`). User can edit/add/remove findings in the UI.
 3. **Generate** — findings POSTed to `POST /api/proposal`; returns Markdown proposal.
 4. **Edit** — `POST /api/edit-proposal` with current proposal + user query + query history for iterative AI edits.
 5. **Export** — DOCX (docx lib) and PDF (jspdf) generated entirely client-side in `document-tools.ts`.
